@@ -1,15 +1,40 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/configs/db';
 import { doubtsTable, repliesTable, membershipsTable } from '@/configs/schema';
-import { desc, sql, and, isNull, eq, count, countDistinct } from 'drizzle-orm';
+import { desc, sql, and, isNull, eq, count, countDistinct, ne } from 'drizzle-orm';
+import { currentUser } from '@clerk/nextjs/server';
+import { checkUserBlock } from '@/lib/auth-utils';
 
 export async function GET(req: Request) {
+    const user = await currentUser();
+    if (!user || !user.primaryEmailAddress?.emailAddress) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const email = user.primaryEmailAddress.emailAddress;
+
+    // Check if user is blocked
+    const { isBlocked, errorResponse } = await checkUserBlock(email);
+    if (isBlocked) return errorResponse;
+
     const { searchParams } = new URL(req.url);
     const classroomIdStr = searchParams.get("classroomId");
     const classroomId = classroomIdStr ? parseInt(classroomIdStr) : null;
 
     if (!classroomId) {
         return NextResponse.json({ error: "Classroom ID required" }, { status: 400 });
+    }
+
+    // Verify the user is a member of this classroom
+    const [membership] = await db.select().from(membershipsTable).where(
+        and(
+            eq(membershipsTable.userEmail, email),
+            eq(membershipsTable.classroomId, classroomId)
+        )
+    );
+
+    if (!membership) {
+        return NextResponse.json({ error: 'Access denied: not a member of this classroom' }, { status: 403 });
     }
 
     try {
@@ -71,19 +96,22 @@ export async function GET(req: Request) {
             .innerJoin(doubtsTable, eq(repliesTable.doubtId, doubtsTable.id))
             .where(eq(doubtsTable.classroomId, classroomId));
 
-        // 7. Top Contributors (students who reply the most)
+        // 6. Top Contributors (students who reply the most)
         const topContributors = await db.select({
             name: repliesTable.userName,
             replyCount: count(repliesTable.id)
         })
             .from(repliesTable)
             .innerJoin(doubtsTable, eq(repliesTable.doubtId, doubtsTable.id))
-            .where(eq(doubtsTable.classroomId, classroomId))
+            .where(and(
+                eq(doubtsTable.classroomId, classroomId),
+                ne(repliesTable.userName, 'DoubtDesk AI')
+            ))
             .groupBy(repliesTable.userName)
             .orderBy(desc(count(repliesTable.id)))
             .limit(5);
 
-        // 6. AI Teaching Suggestions & Weak Concept Detection (Heuristics)
+        // 7. AI Teaching Suggestions & Weak Concept Detection (Heuristics)
         const weakTopics = mostAskedTopics.map((topic, index) => {
             const countValue = Number(topic.count);
             let suggestion = "";
