@@ -17,6 +17,9 @@ describe('Footer Component', () => {
         expect(screen.getByRole('link', { name: 'Analytics' })).toHaveAttribute('href', '/dashboard/analytics');
         expect(screen.getByRole('link', { name: 'Public Doubts' })).toHaveAttribute('href', '/public-rooms');
         expect(screen.getByRole('link', { name: 'Bookmarks' })).toHaveAttribute('href', '/bookmarks');
+        expect(screen.getByRole('link', { name: 'About' })).toHaveAttribute('href', '/about');
+        expect(screen.getByRole('link', { name: 'FAQs' })).toHaveAttribute('href', '/faq');
+        expect(screen.getByRole('link', { name: 'Contributors' })).toHaveAttribute('href', '/contributors');
     });
 
     it('does not render links for unimplemented standalone pages', () => {
@@ -24,7 +27,6 @@ describe('Footer Component', () => {
         expect(screen.queryByRole('link', { name: 'Help Center' })).not.toBeInTheDocument();
         expect(screen.queryByRole('link', { name: 'Discussions' })).not.toBeInTheDocument();
         expect(screen.queryByRole('link', { name: 'Leaderboard' })).not.toBeInTheDocument();
-        expect(screen.queryByRole('link', { name: 'Contributors' })).not.toBeInTheDocument();
     });
 
     it('uses a working contact destination instead of a missing contact page', () => {
@@ -35,6 +37,6 @@ describe('Footer Component', () => {
     it('renders current year copyright', () => {
         render(<Footer />);
         const currentYear = new Date().getFullYear();
-        expect(screen.getByText(new RegExp(`© ${currentYear} DoubtDesk`))).toBeInTheDocument();
+        expect(screen.getByText(new RegExp(`\\u00A9 ${currentYear} DoubtDesk`))).toBeInTheDocument();
     });
 });

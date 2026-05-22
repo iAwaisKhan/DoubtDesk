@@ -23,12 +23,15 @@ export default function Footer() {
                 { label: "Bookmarks", href: "/bookmarks" },
                 { label: "Privacy Policy", href: "/privacy-policy" },
                 { label: "Terms of Service", href: "/terms-of-service" },
+                { label: "About", href: "/about" },
+                { label: "FAQs", href: "/faq" },
             ],
         },
         {
             title: "Community",
             links: [
                 { label: "GitHub", href: "https://github.com/knoxiboy/DoubtDesk" },
+                { label: "Contributors", href: "/contributors" },
                 { label: "Report Issue", href: "https://github.com/knoxiboy/DoubtDesk/issues" },
                 { label: "Contact", href: "mailto:karankmt.tripathi@gmail.com" },
             ],
