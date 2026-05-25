@@ -9,6 +9,7 @@ import Tesseract from 'tesseract.js';
 import { parseAndValidateRequest } from '@/lib/validations/validate';
 import { generateVideoSchema } from '@/lib/validations/video';
 import { currentUser } from '@clerk/nextjs/server';
+import { checkUserBlock } from '@/lib/auth-utils';
 import { redisClient } from '@/lib/ratelimit';
 
 const groq = new Groq({
@@ -72,21 +73,28 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const email = user.primaryEmailAddress?.emailAddress;
+    if (!email) {
+        return NextResponse.json({ error: 'Email required' }, { status: 400 });
+    }
+
+    const { isBlocked, errorResponse: blockResponse } = await checkUserBlock(email);
+    if (isBlocked) return blockResponse;
+
     let lockKey = null;
     try {
         const { errorResponse, data } = await parseAndValidateRequest(req, generateVideoSchema);
         if (errorResponse) return errorResponse;
-        
+
         lockKey = `video_lock:${user.id}`;
         const lockAcquired = await redisClient.setnx(lockKey, "1");
-        
+
         if (!lockAcquired || lockAcquired === 0) {
-            return NextResponse.json({ 
-                error: 'A video generation is already in progress for your account. Please wait for it to finish.' 
+            return NextResponse.json({
+                error: 'A video generation is already in progress for your account. Please wait for it to finish.'
             }, { status: 429 });
         }
-        
-        // Ensure lock expires after 5 minutes to prevent deadlocks if process crashes
+
         if (redisClient.expire) {
             await redisClient.expire(lockKey, 300);
         }
