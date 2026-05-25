@@ -33,7 +33,6 @@ import {
 import { ThemeToggle } from "@/components/ThemeToggle";
 import ShapeGrid from "@/components/ShapeGrid";
 import { Inter, Staatliches } from "next/font/google";
-import ClassroomPreviewCard from "@/components/ClassroomPreviewCard";
 import LiveCampusThreadPanel from "@/components/LiveCampusThreadPanel";
 
 const inter = Inter({ subsets: ["latin"] });
