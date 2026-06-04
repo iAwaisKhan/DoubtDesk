@@ -1,4 +1,16 @@
 import { POST } from '@/app/api/ask-ai/route';
+import { aiLimiter } from '@/lib/ratelimit';
+
+jest.mock('@/lib/ratelimit', () => ({
+    aiLimiter: {
+        limit: jest.fn().mockResolvedValue({
+            success: true,
+            limit: 10,
+            remaining: 9,
+            reset: Date.now() + 60_000,
+        }),
+    },
+}));
 
 jest.mock('@clerk/nextjs/server', () => ({
     auth: jest.fn().mockImplementation(async () => ({ userId: 'user_123' })),
@@ -58,9 +70,17 @@ jest.mock('groq-sdk', () => {
 
 describe('Ask AI API Endpoint', () => {
     const originalFetch = global.fetch;
+    const mockAiLimit = aiLimiter.limit as jest.MockedFunction<typeof aiLimiter.limit>;
 
     afterEach(() => {
         global.fetch = originalFetch;
+        mockAiLimit.mockReset();
+        mockAiLimit.mockResolvedValue({
+            success: true,
+            limit: 10,
+            remaining: 9,
+            reset: Date.now() + 60_000,
+        });
     });
 
     it('POST should generate AI solution and extract subject', async () => {
@@ -87,5 +107,52 @@ describe('Ask AI API Endpoint', () => {
         expect(res.status).toBe(200);
         expect(json.subject).toBe('Physics');
         expect(json.reply).toContain('Light travels at approximately');
+    });
+
+    it('POST should reject rate-limited requests before processing the body', async () => {
+        mockAiLimit.mockResolvedValueOnce({
+            success: false,
+            limit: 10,
+            remaining: 0,
+            reset: Date.now() + 30_000,
+        });
+
+        const req = new Request('http://localhost/api/ask-ai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prompt: 'What is the speed of light?',
+            }),
+        });
+
+        const res = await POST(req);
+        const json = await res.json();
+
+        expect(res.status).toBe(429);
+        expect(res.headers.get('Retry-After')).toBeTruthy();
+        expect(json).toEqual({
+            error: 'Too many AI requests. Please try again shortly.',
+            code: 'RATE_LIMITED',
+        });
+    });
+
+    it('POST should reject unsupported image payloads before provider calls', async () => {
+        const req = new Request('http://localhost/api/ask-ai', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prompt: '',
+                imageBase64: 'data:image/gif;base64,R0lGODlhAQABAIAAAAUEBA==',
+            }),
+        });
+
+        const res = await POST(req);
+        const json = await res.json();
+
+        expect(res.status).toBe(422);
+        expect(json).toEqual({
+            error: 'Please upload a valid PNG, JPG, or WEBP image.',
+            code: 'INVALID_IMAGE_PAYLOAD',
+        });
     });
 });
