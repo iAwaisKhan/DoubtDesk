@@ -10,7 +10,7 @@ import {
   membershipsTable,
 } from "@/configs/schema";
 import { categorizeDoubt } from "@/lib/ai/categorizer";
-import { and, eq, inArray, isNull, or, not, sql, SQL, ilike, desc, getTableColumns } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, not, sql, SQL, ilike, desc, getTableColumns, count } from "drizzle-orm";
 import { moderateContent, handleModerationViolation } from "@/lib/moderation";
 import { buildErrorResponse, errorResponse } from "@/lib/error-handler";
 import { checkUserBlock } from "@/lib/auth-utils";
@@ -149,10 +149,10 @@ export async function GET(req: Request) {
         }
 
         // Clean mapping chunk evaluation token to avoid standard database drivers cast bugs
-        const replyCountSql = sql<number>`coalesce((SELECT count(*)::int FROM ${repliesTable} WHERE ${repliesTable.doubtId} = ${doubtsTable.id}), 0)`.mapWith(Number);
+        const replyCountSql = sql<number>`coalesce((SELECT count(*) FROM ${repliesTable} WHERE ${repliesTable.doubtId} = ${doubtsTable.id}), 0)`.mapWith(Number);
 
         const [totalCountRow] = await db
-            .select({ count: sql<number>`count(*)::int` })
+            .select({ count: count() })
             .from(doubtsTable)
             .where(and(...conditions));
         const totalCount = totalCountRow?.count ?? 0;
